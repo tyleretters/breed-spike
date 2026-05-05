@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { breed } from '@/engine/breed'
 import { createFounderFromString, seedKnownAlleles } from '@/engine/lineage'
-import type { BreedingResult, Plant } from '@/engine/types'
-import type { BreedingConfig } from '@/engine/types'
+import type { BreedingConfig, BreedingResult, Plant } from '@/engine/types'
 import { Backpack } from './Backpack'
 import { BreedingPanel } from './BreedingPanel'
 import { Controls } from './Controls'
 import { EventFrequencyPanel } from './EventFrequencyPanel'
 import { LineageGraph } from './LineageGraph'
 import { LineagePanel } from './LineagePanel'
+import { ModeToggle } from './ModeToggle'
 import { NewFounderForm } from './NewFounderForm'
 import { RegionLegend } from './RegionLegend'
+import { SimpleMode } from './SimpleMode'
 
 type Totals = {
   missense: number
@@ -21,6 +22,8 @@ type Totals = {
   breedings: number
 }
 
+type Mode = 'simple' | 'dense'
+
 const DEFAULT_FOUNDERS: Array<{ label: string; source: string }> = [
   { label: 'Parent A', source: 'revery prairie clover #001' },
   { label: 'Parent B', source: 'revery prairie clover #002' },
@@ -29,6 +32,7 @@ const DEFAULT_FOUNDERS: Array<{ label: string; source: string }> = [
 const newLitterId = () => `litter-${Math.random().toString(36).slice(2, 9)}`
 
 export const App = () => {
+  const [mode, setMode] = useState<Mode>('simple')
   const [plants, setPlants] = useState<Plant[]>([])
   const [knownAlleles, setKnownAlleles] = useState<Set<string>>(() => new Set())
   const [selectedMotherId, setSelectedMotherId] = useState<string | null>(null)
@@ -138,14 +142,11 @@ export const App = () => {
     setPlants((prev) => prev.map((p) => (p.id === plantId ? { ...p, planted: true } : p)))
   }, [])
 
-  const handleDiscard = useCallback(
-    (plantId: string) => {
-      setPlants((prev) => prev.filter((p) => p.id !== plantId))
-      setLastLitter((prev) => prev.filter((r) => r.child.id !== plantId))
-      setInspectedPlantId((prev) => (prev === plantId ? null : prev))
-    },
-    [],
-  )
+  const handleDiscard = useCallback((plantId: string) => {
+    setPlants((prev) => prev.filter((p) => p.id !== plantId))
+    setLastLitter((prev) => prev.filter((r) => r.child.id !== plantId))
+    setInspectedPlantId((prev) => (prev === plantId ? null : prev))
+  }, [])
 
   const inspectedPlant = useMemo(
     () => plants.find((p) => p.id === inspectedPlantId) ?? null,
@@ -161,6 +162,15 @@ export const App = () => {
     [plants, pedigreeRootId],
   )
 
+  const handleStressChange = useCallback(
+    (stress: number) => setConfig((c) => ({ ...c, stress })),
+    [],
+  )
+  const handleMosaicToggle = useCallback(
+    (mosaicEnabled: boolean) => setConfig((c) => ({ ...c, mosaicEnabled })),
+    [],
+  )
+
   return (
     <div className="mx-auto min-h-screen max-w-[1400px] px-4 py-6">
       <header className="mb-5 flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--color-border)] pb-4">
@@ -170,19 +180,46 @@ export const App = () => {
             8×8 SHA256 genome · dominance, mutation, maternal mosaicism, retrotransposons
           </p>
         </div>
-        <RegionLegend />
+        <div className="flex items-center gap-3">
+          {mode === 'dense' && <RegionLegend />}
+          <ModeToggle mode={mode} onChange={setMode} />
+        </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
-        <main className="space-y-5">
-          {pedigreeRoot ? (
-            <LineageGraph
-              rootPlant={pedigreeRoot}
-              plants={plants}
-              onSelectPlant={(id) => setPedigreeRootId(id)}
-              onClose={() => setPedigreeRootId(null)}
-            />
-          ) : (
+      {pedigreeRoot ? (
+        <LineageGraph
+          rootPlant={pedigreeRoot}
+          plants={plants}
+          onSelectPlant={(id) => setPedigreeRootId(id)}
+          onClose={() => setPedigreeRootId(null)}
+        />
+      ) : mode === 'simple' ? (
+        <SimpleMode
+          plants={plants}
+          mother={mother}
+          father={father}
+          config={config}
+          totals={totals}
+          litterSize={litterSize}
+          lastLitter={lastLitter}
+          inspectedPlant={inspectedPlant}
+          inspectedPlantId={inspectedPlantId}
+          selectedMotherId={selectedMotherId}
+          selectedFatherId={selectedFatherId}
+          onBreed={handleBreed}
+          onPlant={handlePlant}
+          onDiscard={handleDiscard}
+          onInspect={handleInspect}
+          onSelect={handleSelect}
+          onClear={handleClear}
+          onView={(id) => setPedigreeRootId(id)}
+          onAddFounder={handleAddFounder}
+          onStressChange={handleStressChange}
+          onMosaicToggle={handleMosaicToggle}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
+          <main className="space-y-5">
             <BreedingPanel
               mother={mother}
               father={father}
@@ -191,35 +228,35 @@ export const App = () => {
               litterSize={litterSize}
               onBreed={handleBreed}
             />
-          )}
-        </main>
-        <aside className="space-y-4">
-          <Controls
-            stress={config.stress}
-            onStressChange={(stress) => setConfig((c) => ({ ...c, stress }))}
-            mosaicEnabled={config.mosaicEnabled}
-            onMosaicToggle={(mosaicEnabled) => setConfig((c) => ({ ...c, mosaicEnabled }))}
-          />
-          <EventFrequencyPanel totals={totals} />
-          <Backpack
-            plants={plants}
-            onPlant={handlePlant}
-            onDiscard={handleDiscard}
-            onInspect={handleInspect}
-            inspectedPlantId={inspectedPlantId}
-            onView={(id) => setPedigreeRootId(id)}
-          />
-          <LineagePanel
-            plants={plants}
-            selectedMotherId={selectedMotherId}
-            selectedFatherId={selectedFatherId}
-            onSelect={handleSelect}
-            onClear={handleClear}
-            onView={(id) => setPedigreeRootId(id)}
-          />
-          <NewFounderForm onCreate={handleAddFounder} />
-        </aside>
-      </div>
+          </main>
+          <aside className="space-y-4">
+            <Controls
+              stress={config.stress}
+              onStressChange={handleStressChange}
+              mosaicEnabled={config.mosaicEnabled}
+              onMosaicToggle={handleMosaicToggle}
+            />
+            <EventFrequencyPanel totals={totals} />
+            <Backpack
+              plants={plants}
+              onPlant={handlePlant}
+              onDiscard={handleDiscard}
+              onInspect={handleInspect}
+              inspectedPlantId={inspectedPlantId}
+              onView={(id) => setPedigreeRootId(id)}
+            />
+            <LineagePanel
+              plants={plants}
+              selectedMotherId={selectedMotherId}
+              selectedFatherId={selectedFatherId}
+              onSelect={handleSelect}
+              onClear={handleClear}
+              onView={(id) => setPedigreeRootId(id)}
+            />
+            <NewFounderForm onCreate={handleAddFounder} />
+          </aside>
+        </div>
+      )}
     </div>
   )
 }

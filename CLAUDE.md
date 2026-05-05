@@ -182,6 +182,26 @@ Match revery-prairie:
 - `@/` path alias maps to `src/`.
 - Sentence case for prose, Title Case for labels (per project owner's preference). Code identifiers preserve original casing.
 
+## Two display modes
+
+The UI ships with **two modes** controlled by `mode: 'simple' | 'dense'` in `App.tsx`. Default is `'simple'`. Toggle via the header chip ("Specimen / Dense") or the `/` keyboard shortcut.
+
+### Simple mode (Blade Runner 2049-inspired, default)
+
+Two views inside the simple mode shell:
+
+- **Sequencer** (`src/components/Sequencer.tsx`) — three horizontal genome strands stacked: Parent A on top, **offspring in the middle**, Parent B on bottom. Hit "Run sequence" → an amber scan line sweeps left-to-right while the offspring strand resolves cell by cell. Tick marks above and below the offspring highlight differences from each parent. When the scan completes, the grade letter rises into view and the shell transitions to:
+- **Specimen Viewer** (`src/components/SpecimenViewer.tsx`) — single centered 8×8 grid rendered as colored squares (no chars). Parent attribution above, big grade letter and seed count below, littermate strip at the very bottom (click any sibling to swap into center). Click any cell to magnify that region — opens a modal with hex chars and the trait description (`RegionDetail` reused). Plant / Discard / Pedigree / Run Another Sequence buttons.
+- **SequencerStrand** (`src/components/SequencerStrand.tsx`) — primitive: one horizontal genome row of 64 colored chips. `revealedCells` drives the cell-by-cell reveal; `diffAgainst` adds tick marks where this strand differs from another.
+
+Side panels (Backpack, Lineage, Controls, Frequency, NewFounderForm) are tucked into a slide-out **SimpleDrawer** on the right edge. Triggered by the vertical "Library" tab or the `]` key. Sections are collapsible accordions; Backpack and Planted Lineage open by default.
+
+### Dense mode (opt-in)
+
+The original layout: `BreedingPanel` with mother / father / inspector grids, full sidebar with all panels visible at once. Reached by clicking "Dense" in the header chip or pressing `/`.
+
+Both modes call the same `handleBreed`, `handlePlant`, `handleDiscard`, `handleSelect`, etc. from `App.tsx`. Engine and state are identical; only rendering changes.
+
 ## What's built (current state)
 
 - Two-parent breeding with full dominance resolution
