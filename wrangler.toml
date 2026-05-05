@@ -1,0 +1,10 @@
+name = "breed-spike"
+compatibility_date = "2026-05-04"
+account_id = "cbe8e84757316e274a5960cf13836119"
+
+# Pure static SPA bundle. Vite builds to ./dist; the worker serves everything
+# from there with index.html returned for unknown paths so client-side routes
+# resolve correctly.
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
