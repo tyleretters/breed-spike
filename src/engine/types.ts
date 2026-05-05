@@ -50,6 +50,16 @@ export type Plant = {
   seedCount: number
   carriers: Record<number, string>
   createdAt: number
+  planted: boolean
+  litterId: string | null
+}
+
+export type Litter = {
+  id: string
+  motherId: string
+  fatherId: string
+  size: number
+  createdAt: number
 }
 
 export type StressLevel = number

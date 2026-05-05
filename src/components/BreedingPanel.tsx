@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { breed } from '@/engine/breed'
 import { GENOME_LENGTH, hammingDistance, popcountHex, posToRowCol } from '@/engine/genome'
 import { regionAtPos, regionById } from '@/engine/regions'
-import type { BreedingConfig, BreedingResult, Plant } from '@/engine/types'
+import type { BreedingResult, Plant } from '@/engine/types'
 import { EventLog } from './EventLog'
 import { GenomeGrid } from './GenomeGrid'
+import { GradeBadge } from './GradeBadge'
 import { PlantCard } from './PlantCard'
 import { RegionDetail } from './RegionDetail'
 
@@ -13,13 +13,20 @@ const REVEAL_PER_CELL_MS = 22
 type Props = {
   mother: Plant | null
   father: Plant | null
-  config: BreedingConfig
-  knownAlleles: Set<string>
-  onChild: (result: BreedingResult) => void
+  inspectedPlant: Plant | null
+  inspectedResult: BreedingResult | null
+  litterSize: number
+  onBreed: () => void
 }
 
-export const BreedingPanel = ({ mother, father, config, knownAlleles, onChild }: Props) => {
-  const [result, setResult] = useState<BreedingResult | null>(null)
+export const BreedingPanel = ({
+  mother,
+  father,
+  inspectedPlant,
+  inspectedResult,
+  litterSize,
+  onBreed,
+}: Props) => {
   const [revealedCells, setRevealedCells] = useState(GENOME_LENGTH)
   const [retroVisible, setRetroVisible] = useState(true)
   const [hoveredPos, setHoveredPos] = useState<number | null>(null)
@@ -31,35 +38,33 @@ export const BreedingPanel = ({ mother, father, config, knownAlleles, onChild }:
     return [posToRowCol(hoveredPos)]
   }, [hoveredPos])
 
+  const inspectedKey = inspectedPlant?.id ?? null
   useEffect(() => {
-    if (!result) return
+    if (!inspectedKey || !inspectedResult) {
+      setRevealedCells(GENOME_LENGTH)
+      setRetroVisible(true)
+      return
+    }
+    setRevealedCells(0)
+    setRetroVisible(false)
     const total = GENOME_LENGTH * REVEAL_PER_CELL_MS
     const interval = setInterval(() => {
       setRevealedCells((n) => Math.min(GENOME_LENGTH, n + 1))
     }, REVEAL_PER_CELL_MS)
     const stopRetro = setTimeout(() => setRetroVisible(true), total + 200)
-    setRetroVisible(false)
     return () => {
       clearInterval(interval)
       clearTimeout(stopRetro)
     }
-  }, [result])
-
-  const handleBreed = () => {
-    if (!mother || !father) return
-    const next = breed(mother, father, config, knownAlleles)
-    setRevealedCells(0)
-    setRetroVisible(false)
-    setResult(next)
-    onChild(next)
-  }
+  }, [inspectedKey, inspectedResult])
 
   const distance = useMemo(() => {
     if (!mother || !father) return null
     return hammingDistance(mother.genome, father.genome)
   }, [mother, father])
 
-  const retroEvent = result?.child.events.find((e) => e.type === 'retrotransposon')
+  const retroEvent =
+    inspectedResult?.child.events.find((e) => e.type === 'retrotransposon') ?? null
 
   return (
     <div className="space-y-4 rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
@@ -109,16 +114,18 @@ export const BreedingPanel = ({ mother, father, config, knownAlleles, onChild }:
         </div>
 
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">Child</h3>
-          {result ? (
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
+            Inspector
+          </h3>
+          {inspectedPlant ? (
             <>
-              <PlantCard plant={result.child} compact />
+              <PlantCard plant={inspectedPlant} compact />
               <div className="mt-3 flex justify-center">
                 <GenomeGrid
-                  key={result.child.id}
-                  genome={result.child.genome}
-                  resolution={result.resolution}
-                  carriers={result.child.carriers}
+                  key={inspectedPlant.id}
+                  genome={inspectedPlant.genome}
+                  resolution={inspectedResult?.resolution}
+                  carriers={inspectedPlant.carriers}
                   revealedCells={revealedCells}
                   burstCells={
                     hoverHighlightCells === undefined &&
@@ -141,7 +148,8 @@ export const BreedingPanel = ({ mother, father, config, knownAlleles, onChild }:
             </>
           ) : (
             <div className="rounded border border-dashed border-[var(--color-border)] p-6 text-center text-xs text-[var(--color-dim)]">
-              Breed two plants to see the offspring resolve here.
+              Breed two plants to see a litter resolve here. Click any seed in the backpack to
+              inspect it.
             </div>
           )}
         </div>
@@ -151,7 +159,7 @@ export const BreedingPanel = ({ mother, father, config, knownAlleles, onChild }:
         hoveredPos={hoveredPos}
         mother={mother}
         father={father}
-        child={result?.child ?? null}
+        child={inspectedPlant}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
@@ -164,6 +172,11 @@ export const BreedingPanel = ({ mother, father, config, knownAlleles, onChild }:
               <span>
                 A popcount {popcountHex(mother.genome)} / B popcount {popcountHex(father.genome)}
               </span>
+              {' • '}
+              <span>
+                Litter size <span className="font-mono text-[var(--color-text)]">{litterSize}</span>{' '}
+                (mother's seed coat)
+              </span>
             </>
           ) : (
             <span className="italic">Select two parents to enable breeding.</span>
@@ -172,40 +185,55 @@ export const BreedingPanel = ({ mother, father, config, knownAlleles, onChild }:
         <button
           type="button"
           disabled={!mother || !father}
-          onClick={handleBreed}
+          onClick={onBreed}
           className="rounded-md border border-[var(--color-border-bright)] bg-[var(--color-panel-2)] px-4 py-1.5 text-sm font-medium hover:bg-[var(--color-border)] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Breed →
+          Breed → {litterSize > 0 ? `${litterSize} seeds` : ''}
         </button>
       </div>
 
-      {result && (
+      {inspectedResult && inspectedPlant && (
         <div className="grid grid-cols-1 gap-3 border-t border-[var(--color-border)] pt-3 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <h4 className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
-              This breeding's events
+              This sibling's events
             </h4>
-            <EventLog events={result.child.events} emptyMessage="Clean breeding — no mutation events fired." />
+            <EventLog
+              events={inspectedPlant.events}
+              emptyMessage="Clean breeding — no mutation events fired."
+            />
           </div>
           <div>
             <h4 className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
               Outcome
             </h4>
             <ul className="space-y-1 text-xs">
-              <li>
-                seeds <span className="font-mono text-[var(--color-text)]">{result.child.seedCount}</span>
+              <li className="flex items-center gap-2">
+                grade{' '}
+                <GradeBadge resilience={inspectedPlant.resilience} size="sm" />
+                <span className="font-mono text-[var(--color-text)]">
+                  res {inspectedPlant.resilience}
+                </span>
               </li>
               <li>
-                resilience <span className="font-mono text-[var(--color-text)]">{result.child.resilience}</span>
+                seeds (next litter){' '}
+                <span className="font-mono text-[var(--color-text)]">
+                  {inspectedPlant.seedCount}
+                </span>
               </li>
               <li>
                 generation{' '}
-                <span className="font-mono text-[var(--color-text)]">{result.child.generation}</span>
+                <span className="font-mono text-[var(--color-text)]">
+                  {inspectedPlant.generation}
+                </span>
               </li>
-              {config.mosaicEnabled && (
+              {mother && (
                 <li className="text-pink-300">
                   mother variant ≠ consensus by{' '}
-                  <span className="font-mono">{hammingDistance(result.motherVariant, mother!.genome)}</span> bits
+                  <span className="font-mono">
+                    {hammingDistance(inspectedResult.motherVariant, mother.genome)}
+                  </span>{' '}
+                  bits
                 </li>
               )}
             </ul>

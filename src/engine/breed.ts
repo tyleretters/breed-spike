@@ -185,6 +185,8 @@ export const breed = (
     seedCount: computeSeedCount(childGenome),
     carriers,
     createdAt: Date.now(),
+    planted: false,
+    litterId: null,
   }
 
   return { child, resolution, motherVariant: motherGenome, fatherGenome }

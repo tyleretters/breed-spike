@@ -7,6 +7,7 @@ type Props = {
   selectedFatherId: string | null
   onSelect: (plantId: string, role: 'mother' | 'father') => void
   onClear: (role: 'mother' | 'father') => void
+  onView?: (plantId: string) => void
 }
 
 export const LineagePanel = ({
@@ -15,22 +16,24 @@ export const LineagePanel = ({
   selectedFatherId,
   onSelect,
   onClear,
+  onView,
 }: Props) => {
+  const planted = plants.filter((p) => p.planted)
   return (
     <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] p-3">
       <div className="mb-2 flex items-baseline justify-between">
         <h3 className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
-          Lineage
+          Planted Lineage
         </h3>
-        <span className="text-[10px] text-[var(--color-dim)]">{plants.length} plants</span>
+        <span className="text-[10px] text-[var(--color-dim)]">{planted.length} plants</span>
       </div>
-      {plants.length === 0 && (
+      {planted.length === 0 && (
         <div className="text-xs italic text-[var(--color-dim)]">
-          No plants yet. Spawn a founder below.
+          No planted specimens yet. Plant a seed from the backpack to make it parent-eligible.
         </div>
       )}
       <ul className="max-h-[420px] space-y-1.5 overflow-y-auto pr-1">
-        {[...plants]
+        {[...planted]
           .sort((a, b) => b.createdAt - a.createdAt)
           .map((plant) => {
             const isMother = plant.id === selectedMotherId
@@ -73,6 +76,16 @@ export const LineagePanel = ({
                   >
                     {isFather ? '✓ father' : 'Set father'}
                   </button>
+                  {onView && (
+                    <button
+                      type="button"
+                      onClick={() => onView(plant.id)}
+                      className="rounded border border-[var(--color-border)] px-1 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-muted)] hover:border-[var(--color-border-bright)] hover:text-[var(--color-text)]"
+                      title="View pedigree"
+                    >
+                      Pedigree
+                    </button>
+                  )}
                 </div>
               </li>
             )

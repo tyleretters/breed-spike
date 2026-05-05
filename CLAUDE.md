@@ -138,14 +138,17 @@ Two-layer separation, mirroring revery-prairie's convention:
 
 ### `src/components/` — React UI
 
-- `App.tsx` — session state (plants, selections, config, knownAlleles, totals), pre-loads two default founders matching the design doc examples, wires the panels.
-- `BreedingPanel.tsx` — three-column layout (mother / father / child), animated reveal, Breed button, hover state lifted up so all three grids highlight in sync, RegionDetail underneath.
-- `GenomeGrid.tsx` — 8×8 hex grid with region-tinted backgrounds (HSL by value), dominance borders, carrier subscripts, sequential cell-by-cell reveal animation, retrotransposon source-outline + target-burst overlays.
+- `App.tsx` — session state (plants, selections, config, knownAlleles, totals, lastLitter, inspectedPlantId, pedigreeRootId). Pre-loads two default founders matching the design doc examples and wires the panels. Owns the litter loop in `handleBreed` (calls `breed()` N times where N = mother.seedCount).
+- `BreedingPanel.tsx` — three-column layout (mother / father / inspector), animated reveal keyed to `inspectedPlant.id`, Breed button shows the upcoming litter size, hover state lifted up so all three grids highlight in sync, RegionDetail underneath.
+- `GenomeGrid.tsx` — 8×8 hex grid with region-tinted backgrounds (HSL by value), dominance borders, carrier subscripts, sequential cell-by-cell reveal animation, retrotransposon source-outline + target-burst overlays. Hover state is lifted up by the parent.
 - `RegionDetail.tsx` — hover inspector. Shows region label, trait chips, description, and a side-by-side mother/father/child allele comparison at the hovered region's cells.
-- `PlantCard.tsx` — compact card with label, genome preview, generation, seeds, resilience, popcount. Used in lineage list and breeding panel headers.
+- `PlantCard.tsx` — compact card with grade badge, label, genome preview, generation, seeds, resilience, popcount. Used in lineage list and breeding panel headers.
+- `Backpack.tsx` — list of unplanted seeds (planted=false) sorted by grade, with Plant / Discard / Pedigree buttons per seed and a click-to-inspect interaction.
+- `LineageGraph.tsx` — SVG pedigree chart. Recursively walks up `parents.{mother, father}` from a root plant, renders nodes at slot positions, draws pink/blue edges to parents. Side panel inspects a focused node and lets you re-root the chart on any ancestor.
+- `GradeBadge.tsx` — colored letter chip rendering one of F/E/D/C/B/A/S based on resilience.
 - `Controls.tsx` — environmental stress slider with live mutation rate readout, mosaic toggle.
 - `EventFrequencyPanel.tsx` — cumulative event totals across the session with per-cross averages and de novo first-occurrence highlight.
-- `LineagePanel.tsx` — sortable list of all plants this session with Set Mother / Set Father buttons.
+- `LineagePanel.tsx` — sortable list of *planted* plants this session with Set Mother / Set Father / Pedigree buttons.
 - `EventLog.tsx` — list of mutation events for a single breeding.
 - `RegionLegend.tsx` — color key in the header.
 - `NewFounderForm.tsx` — text inputs to spawn additional founders by hashing a string.
@@ -153,9 +156,14 @@ Two-layer separation, mirroring revery-prairie's convention:
 ### Data flow
 
 ```
-NewFounderForm → App.handleAddFounder → createFounderFromString → plants[] + knownAlleles
+NewFounderForm → App.handleAddFounder → createFounderFromString → plants[] (planted=true) + knownAlleles
 LineagePanel  → App.handleSelect → selectedMotherId / selectedFatherId
-BreedingPanel.Breed → engine/breed.ts → BreedingResult → onChild → plants[] + totals
+BreedingPanel.Breed → App.handleBreed → loop N=mother.seedCount calls of engine/breed.ts
+                    → results: BreedingResult[] → plants[] (planted=false) + lastLitter + totals + knownAlleles
+Backpack click  → App.handleInspect → inspectedPlantId → BreedingPanel re-runs reveal animation
+Backpack Plant  → App.handlePlant → flips planted=true → enters LineagePanel as parent option
+Backpack Discard→ App.handleDiscard → removes plant + clears inspector if needed
+LineagePanel.Pedigree / Backpack.Pedigree → App.pedigreeRootId → LineageGraph replaces BreedingPanel
 GenomeGrid hover → BreedingPanel.hoveredPos → RegionDetail + highlightCells on all three grids
 Controls       → App.config (stress, mosaicEnabled) → consumed by next breed() call
 ```
@@ -182,9 +190,11 @@ Match revery-prairie:
 - Stress slider with live mutation rate readout
 - Sequential cell-by-cell reveal animation tied to position (~22ms per cell, ~1.4s total)
 - Hover-to-inspect: any cell on any grid → all three grids highlight the same region, RegionDetail shows the trait description and side-by-side allele comparison
-- Lineage tracking — every child becomes a plant in the session and can be used as either parent in subsequent breedings
 - Cumulative event totals with per-cross averages
 - Founder spawning via text input (string → SHA256 → genome)
+- **Litters & seed backpack** — each breeding produces N=mother.seedCount sibling seeds (each rolled independently, so siblings differ from each other even with the same parents). All seeds land in the **Backpack** panel as unplanted. Player must hit **Plant** on a seed to make it parent-eligible. **Discard** removes a seed. Founders are auto-planted. The lineage panel only lists planted plants.
+- **FEDCBAS grade** (`src/engine/grading.ts`) — plants are graded F/E/D/C/B/A/S based on resilience score thresholds. Surfaced as colored `GradeBadge` on every plant card, the inspector outcome panel, the backpack, and pedigree nodes. S = best, F = worst.
+- **Pedigree chart** (`src/components/LineageGraph.tsx`) — clicking the **Pedigree** button on any plant card opens a SVG-rendered family tree with the selected plant at the bottom and ancestors stacked above (max depth 3, so up to 8 oldest ancestors visible). Each node shows a mini 8×8 genome visualization, the grade badge, and the label. Pink edges = mother lines, blue edges = father lines. Click any node to inspect it in a side panel; "Make this plant the pedigree root" lets you walk up the tree.
 
 ## Open design questions
 

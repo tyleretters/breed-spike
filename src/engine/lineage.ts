@@ -40,6 +40,8 @@ export const createFounderFromString = async (
     seedCount: computeSeedCount(genome),
     carriers: {},
     createdAt: Date.now(),
+    planted: true,
+    litterId: null,
   }
 }
 

@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { breed } from '@/engine/breed'
 import { createFounderFromString, seedKnownAlleles } from '@/engine/lineage'
-import type { BreedingConfig, BreedingResult, Plant } from '@/engine/types'
+import type { BreedingResult, Plant } from '@/engine/types'
+import type { BreedingConfig } from '@/engine/types'
+import { Backpack } from './Backpack'
 import { BreedingPanel } from './BreedingPanel'
 import { Controls } from './Controls'
 import { EventFrequencyPanel } from './EventFrequencyPanel'
+import { LineageGraph } from './LineageGraph'
 import { LineagePanel } from './LineagePanel'
 import { NewFounderForm } from './NewFounderForm'
 import { RegionLegend } from './RegionLegend'
@@ -22,6 +26,8 @@ const DEFAULT_FOUNDERS: Array<{ label: string; source: string }> = [
   { label: 'Parent B', source: 'revery prairie clover #002' },
 ]
 
+const newLitterId = () => `litter-${Math.random().toString(36).slice(2, 9)}`
+
 export const App = () => {
   const [plants, setPlants] = useState<Plant[]>([])
   const [knownAlleles, setKnownAlleles] = useState<Set<string>>(() => new Set())
@@ -36,6 +42,9 @@ export const App = () => {
     denovoFirsts: 0,
     breedings: 0,
   })
+  const [lastLitter, setLastLitter] = useState<BreedingResult[]>([])
+  const [inspectedPlantId, setInspectedPlantId] = useState<string | null>(null)
+  const [pedigreeRootId, setPedigreeRootId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -80,21 +89,6 @@ export const App = () => {
     else setSelectedFatherId(null)
   }, [])
 
-  const handleChild = useCallback((result: BreedingResult) => {
-    setPlants((prev) => [...prev, result.child])
-    const events = result.child.events
-    setTotals((prev) => ({
-      missense: prev.missense + events.filter((e) => e.type === 'missense').length,
-      nonsense: prev.nonsense + events.filter((e) => e.type === 'nonsense').length,
-      denovo: prev.denovo + events.filter((e) => e.type === 'denovo').length,
-      retro: prev.retro + events.filter((e) => e.type === 'retrotransposon').length,
-      denovoFirsts:
-        prev.denovoFirsts +
-        events.filter((e) => e.type === 'denovo' && e.firstOccurrence).length,
-      breedings: prev.breedings + 1,
-    }))
-  }, [])
-
   const mother = useMemo(
     () => plants.find((p) => p.id === selectedMotherId) ?? null,
     [plants, selectedMotherId],
@@ -102,6 +96,69 @@ export const App = () => {
   const father = useMemo(
     () => plants.find((p) => p.id === selectedFatherId) ?? null,
     [plants, selectedFatherId],
+  )
+
+  const litterSize = mother?.seedCount ?? 0
+
+  const handleBreed = useCallback(() => {
+    if (!mother || !father || litterSize <= 0) return
+
+    const knownNext = new Set(knownAlleles)
+    const litterId = newLitterId()
+    const results: BreedingResult[] = []
+
+    for (let i = 0; i < litterSize; i++) {
+      const result = breed(mother, father, config, knownNext)
+      result.child.litterId = litterId
+      results.push(result)
+    }
+
+    const aggregate = results.flatMap((r) => r.child.events)
+    setTotals((prev) => ({
+      missense: prev.missense + aggregate.filter((e) => e.type === 'missense').length,
+      nonsense: prev.nonsense + aggregate.filter((e) => e.type === 'nonsense').length,
+      denovo: prev.denovo + aggregate.filter((e) => e.type === 'denovo').length,
+      retro: prev.retro + aggregate.filter((e) => e.type === 'retrotransposon').length,
+      denovoFirsts:
+        prev.denovoFirsts +
+        aggregate.filter((e) => e.type === 'denovo' && e.firstOccurrence).length,
+      breedings: prev.breedings + 1,
+    }))
+    setKnownAlleles(knownNext)
+    setPlants((prev) => [...prev, ...results.map((r) => r.child)])
+    setLastLitter(results)
+    setInspectedPlantId(results[0]?.child.id ?? null)
+  }, [mother, father, litterSize, config, knownAlleles])
+
+  const handleInspect = useCallback((plantId: string) => {
+    setInspectedPlantId(plantId)
+  }, [])
+
+  const handlePlant = useCallback((plantId: string) => {
+    setPlants((prev) => prev.map((p) => (p.id === plantId ? { ...p, planted: true } : p)))
+  }, [])
+
+  const handleDiscard = useCallback(
+    (plantId: string) => {
+      setPlants((prev) => prev.filter((p) => p.id !== plantId))
+      setLastLitter((prev) => prev.filter((r) => r.child.id !== plantId))
+      setInspectedPlantId((prev) => (prev === plantId ? null : prev))
+    },
+    [],
+  )
+
+  const inspectedPlant = useMemo(
+    () => plants.find((p) => p.id === inspectedPlantId) ?? null,
+    [plants, inspectedPlantId],
+  )
+  const inspectedResult = useMemo(
+    () => lastLitter.find((r) => r.child.id === inspectedPlantId) ?? null,
+    [lastLitter, inspectedPlantId],
+  )
+
+  const pedigreeRoot = useMemo(
+    () => plants.find((p) => p.id === pedigreeRootId) ?? null,
+    [plants, pedigreeRootId],
   )
 
   return (
@@ -118,13 +175,23 @@ export const App = () => {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
         <main className="space-y-5">
-          <BreedingPanel
-            mother={mother}
-            father={father}
-            config={config}
-            knownAlleles={knownAlleles}
-            onChild={handleChild}
-          />
+          {pedigreeRoot ? (
+            <LineageGraph
+              rootPlant={pedigreeRoot}
+              plants={plants}
+              onSelectPlant={(id) => setPedigreeRootId(id)}
+              onClose={() => setPedigreeRootId(null)}
+            />
+          ) : (
+            <BreedingPanel
+              mother={mother}
+              father={father}
+              inspectedPlant={inspectedPlant}
+              inspectedResult={inspectedResult}
+              litterSize={litterSize}
+              onBreed={handleBreed}
+            />
+          )}
         </main>
         <aside className="space-y-4">
           <Controls
@@ -134,12 +201,21 @@ export const App = () => {
             onMosaicToggle={(mosaicEnabled) => setConfig((c) => ({ ...c, mosaicEnabled }))}
           />
           <EventFrequencyPanel totals={totals} />
+          <Backpack
+            plants={plants}
+            onPlant={handlePlant}
+            onDiscard={handleDiscard}
+            onInspect={handleInspect}
+            inspectedPlantId={inspectedPlantId}
+            onView={(id) => setPedigreeRootId(id)}
+          />
           <LineagePanel
             plants={plants}
             selectedMotherId={selectedMotherId}
             selectedFatherId={selectedFatherId}
             onSelect={handleSelect}
             onClear={handleClear}
+            onView={(id) => setPedigreeRootId(id)}
           />
           <NewFounderForm onCreate={handleAddFounder} />
         </aside>
