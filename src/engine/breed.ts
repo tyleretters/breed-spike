@@ -57,11 +57,15 @@ const resolveCell = (
   return { expressed, source, carrier: null, aDom, bDom, a, b }
 }
 
+// Offspring baseline 10.5 (not 7.5) because dominance always selects the higher
+// allele at each cell — the expected per-cell value of a random cross is ~10.25,
+// not the raw 7.5 you'd get from a uniform [0,15] sample. Without this shift,
+// every offspring scores +175 from the math alone and lands in S.
 const computeResilience = (genome: Genome, carriers: Record<number, string>): number => {
   let score = 0
   for (let i = 0; i < GENOME_LENGTH; i++) {
     const v = nibbleValue(nibbleAt(genome, i))
-    score += v - 7.5
+    score += v - 10.5
   }
   for (const carrierVal of Object.values(carriers)) {
     if (nibbleValue(carrierVal) <= 2) score -= 0.5

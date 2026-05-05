@@ -120,10 +120,13 @@ export const SimpleMode = ({
         <Sequencer
           mother={mother}
           father={father}
+          plants={plants}
           litterSize={litterSize}
           pendingResult={pendingResult}
           onBreed={handleBreedClick}
           onComplete={handleSequencerComplete}
+          onSelectParent={onSelect}
+          onClearParent={onClear}
         />
       ) : (
         <SpecimenViewer

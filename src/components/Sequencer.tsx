@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { GENOME_LENGTH, hammingDistance } from '@/engine/genome'
-import { gradeFromResilience } from '@/engine/grading'
 import type { BreedingResult, Plant } from '@/engine/types'
 import { GradeBadge } from './GradeBadge'
+import { ParentChip } from './ParentChip'
 import { SequencerStrand } from './SequencerStrand'
 
 const REVEAL_PER_CELL_MS = 22
@@ -12,19 +12,25 @@ const TRANSITION_DELAY_MS = 600
 type Props = {
   mother: Plant | null
   father: Plant | null
+  plants: Plant[]
   litterSize: number
   pendingResult: BreedingResult | null
   onBreed: () => void
   onComplete: () => void
+  onSelectParent: (plantId: string, role: 'mother' | 'father') => void
+  onClearParent: (role: 'mother' | 'father') => void
 }
 
 export const Sequencer = ({
   mother,
   father,
+  plants,
   litterSize,
   pendingResult,
   onBreed,
   onComplete,
+  onSelectParent,
+  onClearParent,
 }: Props) => {
   const [revealedCells, setRevealedCells] = useState(GENOME_LENGTH)
   const [scanActive, setScanActive] = useState(false)
@@ -71,20 +77,24 @@ export const Sequencer = ({
     return hammingDistance(motherGenome, fatherGenome)
   }, [motherGenome, fatherGenome])
 
-  const motherGrade = mother ? gradeFromResilience(mother.resilience) : null
-  const fatherGrade = father ? gradeFromResilience(father.resilience) : null
-
-  const labelMother = mother ? `${mother.label} · GEN ${mother.generation}` : 'NO MOTHER SELECTED'
-  const labelFather = father ? `${father.label} · GEN ${father.generation}` : 'NO FATHER SELECTED'
-
   return (
     <div className="relative mx-auto max-w-[1100px] px-6 py-10">
       <div className="space-y-10">
         {/* Parent A */}
         <div>
-          <div className="mb-2 flex items-baseline justify-between text-[11px] uppercase tracking-[0.2em] text-[var(--color-amber)]">
-            <span>{labelMother}</span>
-            {motherGrade && <span>Grade · {motherGrade}</span>}
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <ParentChip
+              plant={mother}
+              plants={plants}
+              role="mother"
+              onChange={(id) => onSelectParent(id, 'mother')}
+              onClear={() => onClearParent('mother')}
+            />
+            {mother && (
+              <span className="text-[10px] tracking-[0.25em] text-[var(--color-dim)] uppercase">
+                gen {mother.generation} · res {mother.resilience}
+              </span>
+            )}
           </div>
           <div className="overflow-x-auto">
             {motherGenome ? (
@@ -148,9 +158,19 @@ export const Sequencer = ({
 
         {/* Parent B */}
         <div>
-          <div className="mb-2 flex items-baseline justify-between text-[11px] uppercase tracking-[0.2em] text-[var(--color-amber)]">
-            <span>{labelFather}</span>
-            {fatherGrade && <span>Grade · {fatherGrade}</span>}
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <ParentChip
+              plant={father}
+              plants={plants}
+              role="father"
+              onChange={(id) => onSelectParent(id, 'father')}
+              onClear={() => onClearParent('father')}
+            />
+            {father && (
+              <span className="text-[10px] tracking-[0.25em] text-[var(--color-dim)] uppercase">
+                gen {father.generation} · res {father.resilience}
+              </span>
+            )}
           </div>
           <div className="overflow-x-auto">
             {fatherGenome ? (

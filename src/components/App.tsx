@@ -49,6 +49,7 @@ export const App = () => {
   const [lastLitter, setLastLitter] = useState<BreedingResult[]>([])
   const [inspectedPlantId, setInspectedPlantId] = useState<string | null>(null)
   const [pedigreeRootId, setPedigreeRootId] = useState<string | null>(null)
+  const [pedigreeCompareId, setPedigreeCompareId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -161,6 +162,10 @@ export const App = () => {
     () => plants.find((p) => p.id === pedigreeRootId) ?? null,
     [plants, pedigreeRootId],
   )
+  const pedigreeCompare = useMemo(
+    () => plants.find((p) => p.id === pedigreeCompareId) ?? null,
+    [plants, pedigreeCompareId],
+  )
 
   const handleStressChange = useCallback(
     (stress: number) => setConfig((c) => ({ ...c, stress })),
@@ -189,9 +194,17 @@ export const App = () => {
       {pedigreeRoot ? (
         <LineageGraph
           rootPlant={pedigreeRoot}
+          compareTo={pedigreeCompare}
           plants={plants}
-          onSelectPlant={(id) => setPedigreeRootId(id)}
-          onClose={() => setPedigreeRootId(null)}
+          onSelectPlant={(id) => {
+            setPedigreeRootId(id)
+            setPedigreeCompareId(null)
+          }}
+          onCompareChange={(id) => setPedigreeCompareId(id)}
+          onClose={() => {
+            setPedigreeRootId(null)
+            setPedigreeCompareId(null)
+          }}
         />
       ) : mode === 'simple' ? (
         <SimpleMode
