@@ -25,8 +25,14 @@ type Totals = {
 type Mode = 'simple' | 'dense'
 
 const DEFAULT_FOUNDERS: Array<{ label: string; source: string }> = [
-  { label: 'Parent A', source: 'revery prairie clover #001' },
-  { label: 'Parent B', source: 'revery prairie clover #002' },
+  { label: 'Crimson Plume', source: 'prairie cultivar · crimson plume' },
+  { label: 'Goldenrod', source: 'prairie cultivar · goldenrod' },
+  { label: 'Snowdrift', source: 'prairie cultivar · snowdrift' },
+  { label: 'Indigo Spire', source: 'prairie cultivar · indigo spire' },
+  { label: 'Sweetgrass', source: 'prairie cultivar · sweetgrass' },
+  { label: 'Foxglove', source: 'prairie cultivar · foxglove' },
+  { label: 'Black Walnut', source: 'prairie cultivar · black walnut' },
+  { label: 'Prairie Smoke', source: 'prairie cultivar · prairie smoke' },
 ]
 
 const newLitterId = () => `litter-${Math.random().toString(36).slice(2, 9)}`

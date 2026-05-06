@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { GENOME_LENGTH, hammingDistance } from '@/engine/genome'
+import { gradeColor, gradeFromResilience } from '@/engine/grading'
+import { predictResilience } from '@/engine/predict'
 import type { BreedingResult, Plant } from '@/engine/types'
 import { GradeBadge } from './GradeBadge'
+import { HoverInfo } from './HoverInfo'
 import { ParentChip } from './ParentChip'
 import { SequencerStrand } from './SequencerStrand'
 
@@ -35,6 +38,7 @@ export const Sequencer = ({
   const [revealedCells, setRevealedCells] = useState(GENOME_LENGTH)
   const [scanActive, setScanActive] = useState(false)
   const [phase, setPhase] = useState<'idle' | 'scanning' | 'complete'>('idle')
+  const [hoveredPos, setHoveredPos] = useState<number | null>(null)
 
   useEffect(() => {
     if (!pendingResult) return
@@ -77,6 +81,16 @@ export const Sequencer = ({
     return hammingDistance(motherGenome, fatherGenome)
   }, [motherGenome, fatherGenome])
 
+  const forecast = useMemo(() => {
+    if (!mother || !father) return null
+    const predRes = predictResilience(mother.genome, father.genome)
+    const grade = gradeFromResilience(predRes)
+    return { resilience: predRes, grade, color: gradeColor(grade) }
+  }, [mother, father])
+
+  const hoveredPosForOverlay = phase === 'scanning' ? null : hoveredPos
+  const highlightCells = hoveredPosForOverlay === null ? undefined : [hoveredPosForOverlay]
+
   return (
     <div className="relative mx-auto max-w-[1100px] px-6 py-10">
       <div className="space-y-10">
@@ -105,6 +119,8 @@ export const Sequencer = ({
                 revealedCells={revealedCells}
                 cellWidth={14}
                 cellHeight={32}
+                onCellHover={setHoveredPos}
+                highlightCells={highlightCells}
               />
             ) : (
               <div className="h-[32px] rounded border border-dashed border-[var(--color-border)]" />
@@ -135,6 +151,8 @@ export const Sequencer = ({
                 revealedCells={revealedCells}
                 cellWidth={14}
                 cellHeight={48}
+                onCellHover={setHoveredPos}
+                highlightCells={highlightCells}
               />
             ) : (
               <div className="flex h-[48px] items-center justify-center rounded border border-dashed border-[var(--color-border)] text-[10px] uppercase tracking-[0.3em] text-[var(--color-dim)]">
@@ -181,6 +199,8 @@ export const Sequencer = ({
                 revealedCells={revealedCells}
                 cellWidth={14}
                 cellHeight={32}
+                onCellHover={setHoveredPos}
+                highlightCells={highlightCells}
               />
             ) : (
               <div className="h-[32px] rounded border border-dashed border-[var(--color-border)]" />
@@ -203,7 +223,37 @@ export const Sequencer = ({
             </div>
           </div>
         )}
-        {!offspring && (
+        {!offspring && phase === 'idle' && mother && father && forecast && (
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="text-[10px] tracking-[0.3em] text-[var(--color-dim)] uppercase">
+              Forecast · clean dominance roll
+            </div>
+            <div className="flex items-center gap-3">
+              <span
+                className="inline-flex h-9 w-9 items-center justify-center rounded text-lg font-bold"
+                style={{
+                  color: forecast.color,
+                  backgroundColor: `${forecast.color}1f`,
+                  border: `1.5px solid ${forecast.color}80`,
+                }}
+                title={`Expected grade ${forecast.grade} (resilience ~${forecast.resilience}). Mutations and maternal mosaic shift this slightly.`}
+              >
+                {forecast.grade}
+              </span>
+              <div className="text-[11px] tracking-[0.2em] text-[var(--color-muted)] uppercase">
+                <div>~{forecast.resilience > 0 ? '+' : ''}{forecast.resilience} resilience</div>
+                <div className="text-[var(--color-dim)]">
+                  {litterSize} seed{litterSize === 1 ? '' : 's'}
+                  {distance !== null && ` · Hamming ${distance}`}
+                </div>
+              </div>
+            </div>
+            <div className="mt-1 text-[9px] text-[var(--color-dim)]">
+              actual grade can shift up or down with mutation & mosaic
+            </div>
+          </div>
+        )}
+        {(!mother || !father) && (
           <div className="text-[11px] uppercase tracking-[0.3em] text-[var(--color-dim)]">
             Pair two parents in the drawer to enable a sequence run.
           </div>
@@ -221,6 +271,13 @@ export const Sequencer = ({
               : `Run sequence${litterSize > 0 ? ` · ${litterSize} seeds` : ''}`}
         </button>
       </div>
+
+      <HoverInfo
+        pos={hoveredPosForOverlay}
+        mother={mother}
+        father={father}
+        offspring={offspring}
+      />
     </div>
   )
 }
